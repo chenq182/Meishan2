@@ -1,5 +1,6 @@
 package fun.typhoon.meishan.sensor.service;
 
+import fun.typhoon.meishan.sensor.utils.Counter;
 import fun.typhoon.meishan.sensor.utils.WinFileReader;
 import fun.typhoon.meishan.sensor.utils.WinFileWriter;
 import org.springframework.stereotype.Service;
@@ -17,36 +18,24 @@ public class BhgjService {
         WinFileReader reader = new WinFileReader(inputFilePath);
         final Pattern p1 = Pattern.compile(".+(\\d{4}年\\d{2}月\\d{2}日)(\\d{2}时)\\d{2}分\\d{2}秒\\s+(.+--[1-6]).+");
         final Pattern p2 = Pattern.compile(".+(\\d{4}年\\d{2}月\\d{2}日)(\\d{2}时)\\d{2}分\\d{2}秒\\s+(.+)\\s+动作.+");
-        final Map<String, Long> hourMap = new HashMap<>();
-        final Map<String, Long> dayMap = new HashMap<>();
+        final Counter<String> hourCounter = new Counter<>();
+        final Counter<String> dayCounter = new Counter<>();
         reader.line(l -> {
             if (l.contains("复归"))
                 return;
-            String dayAlarm;
-            String hourAlarm;
-            Matcher m1 = p1.matcher(l);
-            if (m1.matches()) {
-                dayAlarm = m1.group(1) + "," + m1.group(3);
-                hourAlarm = m1.group(1) + m1.group(2) + "," + m1.group(3);
-            } else {
-                Matcher m2 = p2.matcher(l);
-                if (m2.matches()) {
-                    dayAlarm = m2.group(1) + "," + m2.group(3);
-                    hourAlarm = m2.group(1) + m2.group(2) + "," + m2.group(3);
-                } else
+            Matcher m = p1.matcher(l);
+            if (!m.matches()) {
+                m = p2.matcher(l);
+                if (!m.matches())
                     return;
             }
-            Long dayCount = dayMap.get(dayAlarm);
-            dayMap.put(dayAlarm, dayCount==null? 1: dayCount+1);
-            Long hourCount = hourMap.get(hourAlarm);
-            hourMap.put(hourAlarm, hourCount==null? 1: hourCount+1);
+            hourCounter.put(m.group(1) + m.group(2) + "," + m.group(3));
+            dayCounter.put(m.group(1) + "," + m.group(3));
         });
-        hourMap.entrySet().removeIf(entry -> entry.getValue() < hourMinCount);
-        dayMap.entrySet().removeIf(entry -> entry.getValue() < dayMinCount);
-
-        List<Map.Entry<String, Long>> list = new ArrayList<>(hourMap.entrySet());
-        list.addAll(dayMap.entrySet());
-        list.sort(Map.Entry.comparingByKey(Comparator.reverseOrder()));
+        hourCounter.removeLessCount(hourMinCount);
+        dayCounter.removeLessCount(dayMinCount);
+        List<Counter.Entry<String, Long>> list = Counter.entryList(Map.Entry.comparingByKey(Comparator.reverseOrder()),
+                hourCounter, dayCounter);
 
         try (WinFileWriter utfWriter = new WinFileWriter(utfFilePath, "UTF-8");
              WinFileWriter gbkWriter = new WinFileWriter(gbkFilePath, "GBK")) {

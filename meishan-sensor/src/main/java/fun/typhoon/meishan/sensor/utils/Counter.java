@@ -16,7 +16,8 @@ public class Counter<T> extends HashMap<T, Long> {
         this.entrySet().removeIf(entry -> entry.getValue()<minCount);
     }
 
-    public List<Counter.Entry<T, Long>> entryList(
+    @SafeVarargs
+    public static<T> List<Counter.Entry<T, Long>> entryList(
             Comparator<? super Counter.Entry<T, Long>> comparator, Counter<T>... counters){
         List<Counter.Entry<T, Long>> list = new ArrayList<>();
         for (Counter<T> counter: counters)
